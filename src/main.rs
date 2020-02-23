@@ -1,4 +1,6 @@
-use std::process::Command;
+mod run_ngrok;
+
+use crate::run_ngrok::run_ngrok;
 use structopt::StructOpt;
 
 #[derive(StructOpt)]
@@ -22,20 +24,7 @@ fn main() -> Result<(), std::io::Error> {
 
     match options {
         CommandLine::Ngrok(Ngrok::Other(args)) => {
-            assert!([
-                "authtoken",
-                "credits",
-                "http",
-                "start",
-                "tcp",
-                "tls",
-                "update",
-                "version",
-                "help",
-            ]
-            .contains(&args[0].as_str()));
-            let result = Command::new("ngrok").args(&args).status()?;
-            println!("Done {}", result);
+            run_ngrok(args)?;
         }
     }
     Ok(())
