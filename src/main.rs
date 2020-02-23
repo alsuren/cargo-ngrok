@@ -14,7 +14,8 @@ enum CommandLine {
 ///
 /// This is heavily inspired by Dark's concept of "Trace Driven Development",
 /// as described at https://darklang.github.io/docs/trace-driven-development.
-#[structopt(after_help = "The following subcommands are forwarded to ngrok:
+#[structopt(after_help = "
+The following subcommands are forwarded to ngrok for convenience:
     authtoken
     credits
     http
@@ -23,7 +24,8 @@ enum CommandLine {
     tls
     update
     version
-    help")]
+    help
+")]
 enum Ngrok {
     /// run your project with tracing (TODO)
     ///
@@ -62,14 +64,14 @@ enum Ngrok {
     /// standard test-driven development workflow to fix the request handler.
     NewTest,
 
-    /// replay the latest 404 error
+    /// replay the latest 404 error (TODO)
     ///
     /// Use this to smoke-test the endpoint that you just wrote with
     /// `new-handler`.
     #[allow(non_camel_case_types)]
     Replay_404,
 
-    /// replay the latest 500 error
+    /// replay the latest 500 error (TODO)
     ///
     /// Use this to smoke-test the endpoint that you just wrote a regression
     /// test for, with `new-test`. We've all written our share of tests that
