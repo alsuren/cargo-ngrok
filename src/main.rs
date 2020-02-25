@@ -86,7 +86,8 @@ enum Ngrok {
     Other(Vec<String>),
 }
 
-fn main() -> Result<(), std::io::Error> {
+#[tokio::main]
+async fn main() -> Result<(), anyhow::Error> {
     let CommandLine::Ngrok(options) = CommandLine::from_args();
 
     match options {
@@ -94,8 +95,8 @@ fn main() -> Result<(), std::io::Error> {
             run_ngrok(args)?;
         }
         Ngrok::Develop => todo!(),
-        Ngrok::_404s => list_404()?.iter().for_each(|r| println!("{}", r)),
-        Ngrok::_500s => list_500()?.iter().for_each(|r| println!("{}", r)),
+        Ngrok::_404s => list_404().await?.iter().for_each(|r| println!("{}", r)),
+        Ngrok::_500s => list_500().await?.iter().for_each(|r| println!("{}", r)),
         Ngrok::NewHandler => todo!(),
         Ngrok::NewTest => todo!(),
         Ngrok::Replay_404 => todo!(),
