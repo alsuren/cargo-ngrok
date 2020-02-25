@@ -1,5 +1,7 @@
+mod list;
 mod run_ngrok;
 
+use crate::list::{list_404, list_500};
 use crate::run_ngrok::run_ngrok;
 use structopt::StructOpt;
 
@@ -92,8 +94,8 @@ fn main() -> Result<(), std::io::Error> {
             run_ngrok(args)?;
         }
         Ngrok::Develop => todo!(),
-        Ngrok::_404s => todo!(),
-        Ngrok::_500s => todo!(),
+        Ngrok::_404s => list_404()?.iter().for_each(|r| println!("{}", r)),
+        Ngrok::_500s => list_500()?.iter().for_each(|r| println!("{}", r)),
         Ngrok::NewHandler => todo!(),
         Ngrok::NewTest => todo!(),
         Ngrok::Replay_404 => todo!(),
