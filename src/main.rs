@@ -38,13 +38,13 @@ enum Ngrok {
     /// 4) your web browser, pointing at your ngrok web root.
     Develop,
 
-    /// list requests for turning into new handlers (TODO)
+    /// list requests for turning into new handlers
     ///
     /// Requests that receive 404 responses are typically ones that you haven't
     /// written handlers for yet. Use `new-handler` to define routes for these.
     _404s,
 
-    /// list requests for turning into regression tests (TODO)
+    /// list requests for turning into regression tests
     ///
     /// Requests that receive 500 responses are typically ones that caused your
     /// code to error out. Use `new-test` to make regression tests for these.
