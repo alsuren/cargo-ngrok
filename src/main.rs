@@ -1,4 +1,6 @@
 mod list;
+mod new;
+mod parse_code;
 mod run_ngrok;
 
 use crate::list::{list_404, list_500};
@@ -89,6 +91,7 @@ enum Ngrok {
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let CommandLine::Ngrok(options) = CommandLine::from_args();
+    println!("hai there neighbour ");
 
     match options {
         Ngrok::Other(args) => {
@@ -97,8 +100,8 @@ async fn main() -> Result<(), anyhow::Error> {
         Ngrok::Develop => todo!(),
         Ngrok::_404s => list_404().await?.iter().for_each(|r| println!("{}", r)),
         Ngrok::_500s => list_500().await?.iter().for_each(|r| println!("{}", r)),
-        Ngrok::NewHandler => todo!(),
-        Ngrok::NewTest => todo!(),
+        Ngrok::NewHandler => crate::new::new_handler().await?,
+        Ngrok::NewTest => crate::new::new_test().await?,
         Ngrok::Replay_404 => todo!(),
         Ngrok::Replay_500 => todo!(),
     }
