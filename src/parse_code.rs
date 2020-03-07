@@ -47,7 +47,6 @@ impl AttrVisitor {
 
 impl<'ast> Visit<'ast> for AttrVisitor {
     fn visit_attribute(&mut self, i: &'ast Attribute) {
-        dbg!(i.to_token_stream().to_string().replace(" ", ""));
         if i.to_token_stream()
             .to_string()
             .replace(" ", "")

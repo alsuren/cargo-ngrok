@@ -70,8 +70,7 @@ fn route_skeleton(uri: &str) -> String {
 
 #[get("{}")]
 async fn {}() -> impl Responder {{
-    dbg!("called");
-    "hi"
+    "TODO: implement this handler"
 }}
 
 "#,
@@ -95,6 +94,12 @@ fn test_skeleton(uri: &str) -> String {
 
         dbg!(resp.status());
         assert!(resp.status().is_success());
+
+        let bytes = atest::read_body(resp).await;
+        assert_eq!(
+            bytes,
+            Bytes::from_static(b"TODO: implement this handler")
+        );
     }}
 
 "#,
@@ -119,8 +124,7 @@ mod tests {
 
 #[get("/favicon.ico")]
 async fn faviconico() -> impl Responder {
-    dbg!("called");
-    "hi"
+    "TODO: implement this handler"
 }
 
 "#
@@ -142,6 +146,12 @@ async fn faviconico() -> impl Responder {
 
         dbg!(resp.status());
         assert!(resp.status().is_success());
+
+        let bytes = atest::read_body(resp).await;
+        assert_eq!(
+            bytes,
+            Bytes::from_static(b"TODO: implement this handler")
+        );
     }
 
 "#
