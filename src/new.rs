@@ -20,32 +20,19 @@ pub async fn new_handler() -> Result<(), anyhow::Error> {
         .map(|s| format!("{}\n", s))
         .collect::<Vec<_>>();
 
-    let existing_handler = find_handler_attrs(&content)
-        .into_iter()
-        .next()
-        .ok_or(anyhow!("could not find any existing handlers"))?;
+    let existing_handler = find_handler_attrs(&content)?;
+    let existing_test = find_test_attrs(&content)?;
+    let existing_service_registration = find_service_registrations(&content)?;
 
     lines.insert(
         existing_handler.start.line - 1,
         handler_skeleton(&trace.request.uri),
     );
 
-    let existing_test = find_test_attrs(&content)
-        .into_iter()
-        .next()
-        .ok_or(anyhow!("could not find any existing tests"))?;
-
     lines.insert(
         existing_test.start.line - 1,
         test_skeleton(&trace.request.uri),
     );
-
-    let existing_service_registration = find_service_registrations(&content)
-        .into_iter()
-        .next()
-        .ok_or(anyhow!(
-            "could not find any existing .service(...) registrations"
-        ))?;
 
     lines
         .get_mut(existing_service_registration.end.line)
@@ -139,7 +126,6 @@ pub async fn new_test() -> Result<(), anyhow::Error> {
 
     let path = "src/main.rs";
     let content = std::fs::read_to_string(path).context(format!("reading {:?}", path))?;
-
     let mut lines = content
         .lines()
         .map(|s| format!("{}\n", s))
@@ -150,15 +136,8 @@ pub async fn new_test() -> Result<(), anyhow::Error> {
         None => &trace.request.uri,
     };
 
-    let handler_name = find_handler_function_names(&content, route_path)
-        .into_iter()
-        .next()
-        .ok_or(anyhow!("could not find handler for {}", route_path))?;
-
-    let existing_test = find_test_attrs(&content)
-        .into_iter()
-        .next()
-        .ok_or(anyhow!("could not find any existing tests"))?;
+    let handler_name = find_handler_function_names(&content, route_path)?;
+    let existing_test = find_test_attrs(&content)?;
 
     lines.insert(
         existing_test.start.line - 1,

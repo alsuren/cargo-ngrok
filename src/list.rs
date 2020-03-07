@@ -4,10 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct Request {
     pub method: String,
     pub uri: String,
-    // TODO: think of a better way to extract the request body:
-    // Currently the best I can think of is doing:
-    //     String::from_utf8(base64::decode(&trace.request.raw)?)?
-    // and then parse the body out. Ngrok might extract it for us already.
+    // TODO: write a .get_body() function
     pub raw: String,
 }
 

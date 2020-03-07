@@ -2,27 +2,41 @@
 //! Original code is lifted from cargo-fixeq, and then adapted
 //! for my purposes.
 
+use anyhow::{Context, Result};
 use proc_macro2::LineColumn;
 use quote::ToTokens;
 use syn::visit::visit_expr_method_call;
 use syn::{spanned::Spanned, visit::Visit, Attribute, ExprMethodCall, ItemFn};
 
+/// there can be only one
+fn highlander<T>(mut things: Vec<T>) -> Result<T> {
+    if things.len() != 1 {
+        anyhow::bail!("Found {} things. There should be only one.", things.len())
+    }
+    things.pop().ok_or_else(|| panic!())
+}
+
 /// Find locations of `#[get("/")]`s from source code.
-pub(crate) fn find_handler_attrs(code: &str) -> Vec<Location> {
-    let mut visitor = AttrVisitor::new("#[get(".into());
+pub(crate) fn find_handler_attrs(code: &str) -> Result<Location> {
+    let mut visitor = AttrVisitor::new(r#"#[get("/")"#.into());
     if let Ok(syntax_tree) = syn::parse_file(&code) {
         visitor.visit_file(&syntax_tree);
     }
-    visitor.out
+
+    highlander(visitor.out).context("should be exactly one '/' handler")
 }
 
 /// Find locations of `#[actix_rt::test]`s from source code.
-pub(crate) fn find_test_attrs(code: &str) -> Vec<Location> {
+pub(crate) fn find_test_attrs(code: &str) -> Result<Location> {
     let mut visitor = AttrVisitor::new("#[actix_rt::test]".into());
     if let Ok(syntax_tree) = syn::parse_file(&code) {
         visitor.visit_file(&syntax_tree);
     }
-    visitor.out
+
+    visitor
+        .out
+        .pop()
+        .ok_or_else(|| anyhow::anyhow!("Could not find any #[actix_rt::test] annotations"))
 }
 
 #[derive(Clone)]
@@ -61,12 +75,13 @@ impl<'ast> Visit<'ast> for AttrVisitor {
 }
 
 /// Find names of #[get("/route")] handler functions from source code.
-pub(crate) fn find_handler_function_names(code: &str, route: &str) -> Vec<String> {
+pub(crate) fn find_handler_function_names(code: &str, route: &str) -> Result<String> {
     let mut visitor = FnVisitor::new(format!(r#"#[get("{}")]"#, route));
     if let Ok(syntax_tree) = syn::parse_file(&code) {
         visitor.visit_file(&syntax_tree);
     }
-    visitor.out
+
+    highlander(visitor.out).with_context(|| format!("should be only one {} handler", route))
 }
 
 struct FnVisitor {
@@ -99,12 +114,15 @@ impl<'ast> Visit<'ast> for FnVisitor {
 }
 
 /// Find locations of `.service(index)` from source code.
-pub(crate) fn find_service_registrations(code: &str) -> Vec<Location> {
+pub(crate) fn find_service_registrations(code: &str) -> Result<Location> {
     let mut visitor = MethodCallVisitor::new("service".into());
     if let Ok(syntax_tree) = syn::parse_file(&code) {
         visitor.visit_file(&syntax_tree);
     }
-    visitor.out
+    visitor
+        .out
+        .pop()
+        .ok_or_else(|| anyhow::anyhow!("should be at least one call to .service(...)"))
 }
 
 struct MethodCallVisitor {
@@ -163,11 +181,9 @@ async fn index(query: web::Query<HashMap<String, String>>) -> impl Responder {
 }
                     "#
                 )
-            )
-            .replace("\n", "")
-            .replace(" ", "")
-            .replace(",]", "]"),
-            "[4,0-4,11]"
+                .unwrap()
+            ),
+            "4,0-4,11"
         );
     }
 
@@ -191,11 +207,9 @@ async fn index(query: web::Query<HashMap<String, String>>) -> impl Responder {
 
                     "#
                 )
-            )
-            .replace("\n", "")
-            .replace(" ", "")
-            .replace(",]", "]"),
-            "[3,4-3,21]"
+                .unwrap()
+            ),
+            "3,4-3,21"
         );
     }
 
@@ -222,11 +236,9 @@ async fn main() -> std::io::Result<()> {
 
                     "#
                 )
-            )
-            .replace("\n", "")
-            .replace(" ", "")
-            .replace(",]", "]"),
-            "[10,62-10,77]"
+                .unwrap()
+            ),
+            "10,62-10,77"
         );
     }
 }
