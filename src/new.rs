@@ -1,47 +1,40 @@
 use crate::parse_code::find_handler_attrs;
 use crate::parse_code::find_service_registrations;
 use crate::parse_code::{find_handler_function_names, find_test_attrs};
-use anyhow::{anyhow, Context};
+use anyhow::Context;
+
+fn read_file(path: &str) -> anyhow::Result<(String, Vec<String>)> {
+    let content = std::fs::read_to_string(path).context(format!("reading {:?}", path))?;
+    let lines = content.lines().map(|s| format!("{}\n", s)).collect();
+
+    Ok((content, lines))
+}
 
 pub async fn new_handler() -> Result<(), anyhow::Error> {
-    let requests = crate::list::list_requests().await?;
+    let trace = crate::list::latest_trace_for_code(404).await?;
 
-    let trace = requests
-        .into_iter()
-        .filter(|t| t.response.status_code == 404)
-        .next()
-        .ok_or(anyhow!("no 404 responses found"))?;
-    println!("{:?}", trace.request);
-    let path = "src/main.rs";
-    let content = std::fs::read_to_string(path).context(format!("reading {:?}", path))?;
-
-    let mut lines = content
-        .lines()
-        .map(|s| format!("{}\n", s))
-        .collect::<Vec<_>>();
+    let file_path = "src/main.rs";
+    let (content, mut lines) = read_file(file_path)?;
 
     let existing_handler = find_handler_attrs(&content)?;
     let existing_test = find_test_attrs(&content)?;
     let existing_service_registration = find_service_registrations(&content)?;
 
-    lines.insert(
-        existing_handler.start.line - 1,
-        handler_skeleton(&trace.request.uri),
-    );
+    let skeleton_handler = handler_skeleton(&trace.request.uri);
+    let skeleton_test = test_skeleton(&trace.request.uri);
+    let service_registration = service_registration_skeleton(&trace.request.uri);
 
-    lines.insert(
-        existing_test.start.line - 1,
-        test_skeleton(&trace.request.uri),
-    );
-
+    lines.insert(existing_handler.start.line - 1, skeleton_handler);
+    lines.insert(existing_test.start.line - 1, skeleton_test);
     lines
         .get_mut(existing_service_registration.end.line)
         .unwrap()
         .insert_str(
             existing_service_registration.end.column,
-            &service_registration_skeleton(&trace.request.uri),
+            &service_registration,
         );
-    std::fs::write(&path, lines.concat()).context(format!("reading {:?}", path))?;
+
+    std::fs::write(&file_path, lines.concat()).context(format!("writing {:?}", file_path))?;
 
     Ok(())
 }
@@ -97,53 +90,22 @@ fn service_registration_skeleton(uri: &str) -> String {
 }
 
 pub async fn new_test() -> Result<(), anyhow::Error> {
-    let requests = crate::list::list_requests().await?;
+    let trace = crate::list::latest_trace_for_code(500).await?;
 
-    let trace = requests
-        .into_iter()
-        .filter(|t| t.response.status_code == 500)
-        .next()
-        .ok_or(anyhow!("no 500 responses found"))?;
-    // println!("{:?}", trace.request);
+    let file_path = "src/main.rs";
+    let (content, mut lines) = read_file(file_path)?;
 
-    // let request_buf = base64::decode(&trace.request.raw)?;
-    // println!("{:?}", std::str::from_utf8(&request_buf)?);
-    // let mut request_headers = [httparse::EMPTY_HEADER; 16];
-    // let mut request = httparse::Request::new(&mut request_headers);
-    // let byte_count = request.parse(&request_buf)?;
-    // println!("{:?} => {:?}", byte_count, request);
-
-    let response_buf = base64::decode(&trace.response.raw)?;
-    // println!("{:?}", std::str::from_utf8(&response_buf)?);
-    let mut response_headers = [httparse::EMPTY_HEADER; 16];
-    let mut response = httparse::Response::new(&mut response_headers);
-    let byte_count = match response.parse(&response_buf)? {
-        httparse::Status::Complete(byte_count) => byte_count,
-        httparse::Status::Partial => anyhow::bail!("response was partial"),
-    };
-    // println!("{:?} => {:?}", byte_count, response);
-    let response_body = std::str::from_utf8(&response_buf[byte_count..])?;
-
-    let path = "src/main.rs";
-    let content = std::fs::read_to_string(path).context(format!("reading {:?}", path))?;
-    let mut lines = content
-        .lines()
-        .map(|s| format!("{}\n", s))
-        .collect::<Vec<_>>();
-
-    let route_path = match trace.request.uri.find('?') {
-        Some(index) => trace.request.uri.get(..index).unwrap(),
-        None => &trace.request.uri,
-    };
-
-    let handler_name = find_handler_function_names(&content, route_path)?;
+    let handler_name = find_handler_function_names(&content, &trace.request.route_path())?;
     let existing_test = find_test_attrs(&content)?;
 
-    lines.insert(
-        existing_test.start.line - 1,
-        test_500_skeleton(&handler_name, &trace.request.uri, response_body),
+    let skeleton_test = test_500_skeleton(
+        &handler_name,
+        &trace.request.uri,
+        &trace.response.get_body()?,
     );
-    std::fs::write(&path, lines.concat()).context(format!("reading {:?}", path))?;
+
+    lines.insert(existing_test.start.line - 1, skeleton_test);
+    std::fs::write(&file_path, lines.concat()).context(format!("writing {:?}", file_path))?;
 
     Ok(())
 }

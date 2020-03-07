@@ -98,8 +98,8 @@ async fn main() -> Result<(), anyhow::Error> {
             run_ngrok(args)?;
         }
         Ngrok::Develop => todo!(),
-        Ngrok::_404s => list_404().await?.iter().for_each(|r| println!("{}", r)),
-        Ngrok::_500s => list_500().await?.iter().for_each(|r| println!("{}", r)),
+        Ngrok::_404s => list_404().await?.for_each(|r| println!("{}", r)),
+        Ngrok::_500s => list_500().await?.for_each(|r| println!("{}", r)),
         Ngrok::NewHandler => crate::new::new_handler().await?,
         Ngrok::NewTest => crate::new::new_test().await?,
         Ngrok::Replay_404 => todo!(),
