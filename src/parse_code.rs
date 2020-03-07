@@ -5,7 +5,7 @@
 use proc_macro2::LineColumn;
 use quote::ToTokens;
 use syn::visit::visit_expr_method_call;
-use syn::{spanned::Spanned, visit::Visit, Attribute, ExprMethodCall};
+use syn::{spanned::Spanned, visit::Visit, Attribute, ExprMethodCall, ItemFn};
 
 /// Find locations of `#[get("/")]`s from source code.
 pub(crate) fn find_handler_attrs(code: &str) -> Vec<Location> {
@@ -56,6 +56,44 @@ impl<'ast> Visit<'ast> for AttrVisitor {
                 start: i.pound_token.span().start(),
                 end: i.bracket_token.span.end(),
             });
+        }
+    }
+}
+
+/// Find names of #[get("/route")] handler functions from source code.
+pub(crate) fn find_handler_function_names(code: &str, route: &str) -> Vec<String> {
+    let mut visitor = FnVisitor::new(format!(r#"#[get("{}")]"#, route));
+    if let Ok(syntax_tree) = syn::parse_file(&code) {
+        visitor.visit_file(&syntax_tree);
+    }
+    visitor.out
+}
+
+struct FnVisitor {
+    searching_for: String,
+    out: Vec<String>,
+}
+
+impl FnVisitor {
+    fn new(searching_for: String) -> Self {
+        FnVisitor {
+            searching_for,
+            out: Vec::default(),
+        }
+    }
+}
+
+impl<'ast> Visit<'ast> for FnVisitor {
+    fn visit_item_fn(&mut self, i: &'ast ItemFn) {
+        for attr in &i.attrs {
+            if attr
+                .to_token_stream()
+                .to_string()
+                .replace(" ", "")
+                .starts_with(&self.searching_for)
+            {
+                self.out.push(i.sig.ident.to_token_stream().to_string());
+            }
         }
     }
 }

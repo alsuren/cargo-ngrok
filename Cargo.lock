@@ -86,6 +86,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64",
+ "httparse",
  "lazy_static",
  "proc-macro2",
  "quote",

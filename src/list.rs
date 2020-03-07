@@ -6,35 +6,35 @@ pub struct Request {
     pub uri: String,
     // TODO: think of a better way to extract the request body:
     // Currently the best I can think of is doing:
-    //     pub raw: String,
     //     String::from_utf8(base64::decode(&trace.request.raw)?)?
     // and then parse the body out. Ngrok might extract it for us already.
+    pub raw: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Response {
     pub status_code: u32,
-    // pub raw: String,
+    pub raw: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Trace {
+pub struct RequestTrace {
     pub id: String,
     pub request: Request,
     pub response: Response,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Traces {
-    requests: Vec<Trace>,
+struct NgrokResponse {
+    requests: Vec<RequestTrace>,
 }
 
-pub async fn list_requests() -> Result<Vec<Trace>, anyhow::Error> {
-    let traces: Traces = reqwest::get("http://127.0.0.1:4040/api/requests/http")
+pub async fn list_requests() -> Result<Vec<RequestTrace>, anyhow::Error> {
+    let resp: NgrokResponse = reqwest::get("http://127.0.0.1:4040/api/requests/http")
         .await?
         .json()
         .await?;
-    Ok(traces.requests)
+    Ok(resp.requests)
 }
 
 async fn list_routes_for_code(code: u32) -> Result<Vec<String>, anyhow::Error> {
