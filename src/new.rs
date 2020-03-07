@@ -2,12 +2,19 @@ use crate::parse_code::find_handler_attrs;
 use crate::parse_code::find_service_registrations;
 use crate::parse_code::{find_handler_function_names, find_test_attrs};
 use anyhow::Context;
+use proc_macro2::LineColumn;
 
 fn read_file(path: &str) -> anyhow::Result<(String, Vec<String>)> {
     let content = std::fs::read_to_string(path).context(format!("reading {:?}", path))?;
     let lines = content.lines().map(|s| format!("{}\n", s)).collect();
 
     Ok((content, lines))
+}
+
+fn insert(lines: &mut Vec<String>, location: LineColumn, code: &str) {
+    dbg!(lines.get_mut(location.line - 1))
+        .unwrap()
+        .insert_str(location.column, &code);
 }
 
 pub async fn new_handler() -> Result<(), anyhow::Error> {
@@ -20,26 +27,24 @@ pub async fn new_handler() -> Result<(), anyhow::Error> {
     let existing_test = find_test_attrs(&content)?;
     let existing_service_registration = find_service_registrations(&content)?;
 
-    let skeleton_handler = handler_skeleton(&trace.request.uri);
-    let skeleton_test = test_skeleton(&trace.request.uri);
-    let service_registration = service_registration_skeleton(&trace.request.uri);
+    let skeleton_handler = format_handler(&trace.request.uri);
+    let skeleton_test = format_integration_test(&trace.request.uri);
+    let service_registration = format_service_registration(&trace.request.uri);
 
-    lines.insert(existing_handler.start.line - 1, skeleton_handler);
-    lines.insert(existing_test.start.line - 1, skeleton_test);
-    lines
-        .get_mut(existing_service_registration.end.line)
-        .unwrap()
-        .insert_str(
-            existing_service_registration.end.column,
-            &service_registration,
-        );
+    insert(&mut lines, existing_handler.start, &skeleton_handler);
+    insert(&mut lines, existing_test.start, &skeleton_test);
+    insert(
+        &mut lines,
+        existing_service_registration.end,
+        &service_registration,
+    );
 
     std::fs::write(&file_path, lines.concat()).context(format!("writing {:?}", file_path))?;
 
     Ok(())
 }
 
-fn handler_skeleton(uri: &str) -> String {
+fn format_handler(uri: &str) -> String {
     // Ignore the whitespace. Rustfmt will strip it all out.
     format!(
         r#"
@@ -55,7 +60,7 @@ async fn {handler_name}() -> impl Responder {{
     )
 }
 
-fn test_skeleton(uri: &str) -> String {
+fn format_integration_test(uri: &str) -> String {
     let handler_name = uri.replace(|c: char| !c.is_ascii_lowercase(), "");
     // Ignore the whitespace. Rustfmt will strip it all out.
     format!(
@@ -84,7 +89,7 @@ fn test_skeleton(uri: &str) -> String {
     )
 }
 
-fn service_registration_skeleton(uri: &str) -> String {
+fn format_service_registration(uri: &str) -> String {
     let handler_name = uri.replace(|c: char| !c.is_ascii_lowercase(), "");
     format!(".service({})", handler_name)
 }
@@ -98,7 +103,7 @@ pub async fn new_test() -> Result<(), anyhow::Error> {
     let handler_name = find_handler_function_names(&content, &trace.request.route_path())?;
     let existing_test = find_test_attrs(&content)?;
 
-    let skeleton_test = test_500_skeleton(
+    let skeleton_test = format_regression_test(
         &handler_name,
         &trace.request.uri,
         &trace.response.get_body()?,
@@ -110,7 +115,7 @@ pub async fn new_test() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn test_500_skeleton(handler_name: &str, uri: &str, response_body: &str) -> String {
+fn format_regression_test(handler_name: &str, uri: &str, response_body: &str) -> String {
     let suffix = uri.replace(|c: char| !c.is_ascii_lowercase(), "");
     // Ignore the whitespace. Rustfmt will strip it all out.
     format!(
@@ -145,9 +150,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_handler_skeleton() {
+    fn test_format_handler() {
         assert_eq!(
-            handler_skeleton("/favicon.ico"),
+            format_handler("/favicon.ico"),
             r#"
 
 #[get("/favicon.ico")]
@@ -160,9 +165,9 @@ async fn faviconico() -> impl Responder {
     }
 
     #[test]
-    fn test_test_skeleton() {
+    fn test_format_integration_test() {
         assert_eq!(
-            test_skeleton("/favicon.ico"),
+            format_integration_test("/favicon.ico"),
             r#"
 
     #[actix_rt::test]
@@ -187,9 +192,9 @@ async fn faviconico() -> impl Responder {
     }
 
     #[test]
-    fn test_test_500_skeleton() {
+    fn test_format_regression_test() {
         assert_eq!(
-            test_500_skeleton("index", "/?param=boom", "Some error message"),
+            format_regression_test("index", "/?param=boom", "Some error message"),
             r#"
 
     #[actix_rt::test]

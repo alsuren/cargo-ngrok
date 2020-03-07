@@ -8,12 +8,22 @@ use quote::ToTokens;
 use syn::visit::visit_expr_method_call;
 use syn::{spanned::Spanned, visit::Visit, Attribute, ExprMethodCall, ItemFn};
 
-/// there can be only one
+/// There can be only one
 fn highlander<T>(mut things: Vec<T>) -> Result<T> {
     if things.len() != 1 {
         anyhow::bail!("Found {} things. There should be only one.", things.len())
     }
-    things.pop().ok_or_else(|| panic!())
+    Ok(things.swap_remove(0))
+}
+
+fn first<T>(mut things: Vec<T>) -> Result<T> {
+    if things.len() < 1 {
+        anyhow::bail!(
+            "Found {} things. There should be at least one.",
+            things.len()
+        )
+    }
+    Ok(things.swap_remove(0))
 }
 
 /// Find locations of `#[get("/")]`s from source code.
@@ -33,10 +43,7 @@ pub(crate) fn find_test_attrs(code: &str) -> Result<Location> {
         visitor.visit_file(&syntax_tree);
     }
 
-    visitor
-        .out
-        .pop()
-        .ok_or_else(|| anyhow::anyhow!("Could not find any #[actix_rt::test] annotations"))
+    first(visitor.out).context("Could not find any #[actix_rt::test] annotations")
 }
 
 #[derive(Clone)]
@@ -119,10 +126,7 @@ pub(crate) fn find_service_registrations(code: &str) -> Result<Location> {
     if let Ok(syntax_tree) = syn::parse_file(&code) {
         visitor.visit_file(&syntax_tree);
     }
-    visitor
-        .out
-        .pop()
-        .ok_or_else(|| anyhow::anyhow!("should be at least one call to .service(...)"))
+    first(visitor.out).context("should be at least one call to .service(...)")
 }
 
 struct MethodCallVisitor {
@@ -234,6 +238,18 @@ async fn main() -> std::io::Result<()> {
         .await
 }
 
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use actix_web::{http, test as atest, web::Bytes};
+
+    #[actix_rt::test]
+    async fn test() {
+        // Please don't tell me about this one:
+        let mut app = atest::init_service(App::new().service(index)).await;
+    }
+}
                     "#
                 )
                 .unwrap()

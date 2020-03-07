@@ -91,7 +91,6 @@ enum Ngrok {
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let CommandLine::Ngrok(options) = CommandLine::from_args();
-    println!("hai there neighbour ");
 
     match options {
         Ngrok::Other(args) => {
