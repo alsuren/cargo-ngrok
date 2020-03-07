@@ -4,7 +4,8 @@
 
 use proc_macro2::LineColumn;
 use quote::ToTokens;
-use syn::{spanned::Spanned, visit::Visit, Attribute};
+use syn::visit::visit_expr_method_call;
+use syn::{spanned::Spanned, visit::Visit, Attribute, ExprMethodCall};
 
 /// Find locations of `#[get("/")]`s from source code.
 pub(crate) fn find_route_attrs(code: &str) -> Vec<Location> {
@@ -15,7 +16,7 @@ pub(crate) fn find_route_attrs(code: &str) -> Vec<Location> {
     visitor.out
 }
 
-/// Find locations of `#[get("/")]`s from source code.
+/// Find locations of `#[actix_rt::test]`s from source code.
 pub(crate) fn find_test_attrs(code: &str) -> Vec<Location> {
     let mut visitor = AttrVisitor::new("#[actix_rt::test]".into());
     if let Ok(syntax_tree) = syn::parse_file(&code) {
@@ -57,6 +58,41 @@ impl<'ast> Visit<'ast> for AttrVisitor {
                 end: i.bracket_token.span.end(),
             });
         }
+    }
+}
+
+/// Find locations of `.service(index)` from source code.
+pub(crate) fn find_service_registrations(code: &str) -> Vec<Location> {
+    let mut visitor = MethodCallVisitor::new("service".into());
+    if let Ok(syntax_tree) = syn::parse_file(&code) {
+        visitor.visit_file(&syntax_tree);
+    }
+    visitor.out
+}
+
+struct MethodCallVisitor {
+    searching_for: String,
+    out: Vec<Location>,
+}
+
+impl MethodCallVisitor {
+    fn new(searching_for: String) -> Self {
+        MethodCallVisitor {
+            searching_for,
+            out: Vec::default(),
+        }
+    }
+}
+
+impl<'ast> Visit<'ast> for MethodCallVisitor {
+    fn visit_expr_method_call(&mut self, i: &'ast ExprMethodCall) {
+        if i.method.to_string() == self.searching_for {
+            self.out.push(Location {
+                start: i.dot_token.span().start(),
+                end: i.span().end(),
+            });
+        }
+        visit_expr_method_call(self, i);
     }
 }
 
@@ -123,6 +159,37 @@ async fn index(query: web::Query<HashMap<String, String>>) -> impl Responder {
             .replace(" ", "")
             .replace(",]", "]"),
             "[3,4-3,21]"
+        );
+    }
+
+    #[test]
+    fn test_find_service_registrations() {
+        assert_eq!(
+            format!(
+                "{:#?}",
+                find_service_registrations(
+                    r#"
+
+
+#[actix_rt::main]
+async fn main() -> std::io::Result<()> {
+    std::env::set_var("RUST_LOG", "actix_web=info");
+    env_logger::init();
+
+    // start http server
+    HttpServer::new(move || App::new().wrap(Logger::default()).service(index))
+        .bind("127.0.0.1:8080")?
+        .run()
+        .await
+}
+
+                    "#
+                )
+            )
+            .replace("\n", "")
+            .replace(" ", "")
+            .replace(",]", "]"),
+            "[10,62-10,77]"
         );
     }
 }

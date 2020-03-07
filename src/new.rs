@@ -1,4 +1,5 @@
 use crate::parse_code::find_route_attrs;
+use crate::parse_code::find_service_registrations;
 use crate::parse_code::find_test_attrs;
 use anyhow::{anyhow, Context};
 
@@ -38,6 +39,21 @@ pub async fn new_handler() -> Result<(), anyhow::Error> {
         existing_test.start.line - 1,
         test_skeleton(&trace.request.uri),
     );
+
+    let existing_service_registration = find_service_registrations(&content)
+        .into_iter()
+        .next()
+        .ok_or(anyhow!(
+            "could not find any existing .service(...) registrations"
+        ))?;
+
+    lines
+        .get_mut(existing_service_registration.end.line)
+        .unwrap()
+        .insert_str(
+            existing_service_registration.end.column,
+            &service_registration_skeleton(&trace.request.uri),
+        );
     std::fs::write(&path, lines.concat()).context(format!("reading {:?}", path))?;
 
     Ok(())
@@ -84,6 +100,11 @@ fn test_skeleton(uri: &str) -> String {
 "#,
         handler_name, handler_name, uri,
     )
+}
+
+fn service_registration_skeleton(uri: &str) -> String {
+    let handler_name = uri.replace(|c: char| !c.is_ascii_lowercase(), "");
+    format!(".service({})", handler_name)
 }
 
 #[cfg(test)]
