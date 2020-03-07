@@ -3,11 +3,21 @@
 //! for my purposes.
 
 use proc_macro2::LineColumn;
-use syn::{spanned::Spanned, visit::Visit, Attribute, Ident};
+use quote::ToTokens;
+use syn::{spanned::Spanned, visit::Visit, Attribute};
 
 /// Find locations of `#[get("/")]`s from source code.
 pub(crate) fn find_route_attrs(code: &str) -> Vec<Location> {
-    let mut visitor = RouteAttrVisitor::default();
+    let mut visitor = AttrVisitor::new("#[get(".into());
+    if let Ok(syntax_tree) = syn::parse_file(&code) {
+        visitor.visit_file(&syntax_tree);
+    }
+    visitor.out
+}
+
+/// Find locations of `#[get("/")]`s from source code.
+pub(crate) fn find_test_attrs(code: &str) -> Vec<Location> {
+    let mut visitor = AttrVisitor::new("#[actix_rt::test]".into());
     if let Ok(syntax_tree) = syn::parse_file(&code) {
         visitor.visit_file(&syntax_tree);
     }
@@ -20,16 +30,28 @@ pub(crate) struct Location {
     pub(crate) end: LineColumn,
 }
 
-#[derive(Default)]
-struct RouteAttrVisitor {
+struct AttrVisitor {
+    searching_for: String,
     out: Vec<Location>,
 }
 
-impl<'ast> Visit<'ast> for RouteAttrVisitor {
+impl AttrVisitor {
+    fn new(searching_for: String) -> Self {
+        AttrVisitor {
+            searching_for,
+            out: Vec::default(),
+        }
+    }
+}
+
+impl<'ast> Visit<'ast> for AttrVisitor {
     fn visit_attribute(&mut self, i: &'ast Attribute) {
-        let path = &i.path;
-        if path.is_ident(&Ident::new("get", path.span())) {
-            i.pound_token.span().start();
+        dbg!(i.to_token_stream().to_string().replace(" ", ""));
+        if i.to_token_stream()
+            .to_string()
+            .replace(" ", "")
+            .starts_with(&self.searching_for)
+        {
             self.out.push(Location {
                 start: i.pound_token.span().start(),
                 end: i.bracket_token.span.end(),
@@ -73,6 +95,34 @@ async fn index(query: web::Query<HashMap<String, String>>) -> impl Responder {
             .replace(" ", "")
             .replace(",]", "]"),
             "[4,0-4,11]"
+        );
+    }
+
+    #[test]
+    fn test_find_test_attr() {
+        assert_eq!(
+            format!(
+                "{:#?}",
+                find_test_attrs(
+                    r#"
+
+    #[actix_rt::test]
+    async fn test_faviconico() {
+        let mut app = atest::init_service(App::new().service(index)).await;
+
+        let req = atest::TestRequest::with_uri("/favicon.ico").to_request();
+        let resp = atest::call_service(&mut app, req).await;
+
+        assert!(resp.status().is_success());
+    }
+
+                    "#
+                )
+            )
+            .replace("\n", "")
+            .replace(" ", "")
+            .replace(",]", "]"),
+            "[3,4-3,21]"
         );
     }
 }

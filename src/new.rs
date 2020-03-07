@@ -1,4 +1,5 @@
 use crate::parse_code::find_route_attrs;
+use crate::parse_code::find_test_attrs;
 use anyhow::{anyhow, Context};
 
 pub async fn new_handler() -> Result<(), anyhow::Error> {
@@ -13,21 +14,30 @@ pub async fn new_handler() -> Result<(), anyhow::Error> {
     let path = "src/main.rs";
     let content = std::fs::read_to_string(path).context(format!("reading {:?}", path))?;
 
-    let existing_route = find_route_attrs(&content)
-        .into_iter()
-        .next()
-        .ok_or(anyhow!("could not find any existing routes"))?;
-
     let mut lines = content
         .lines()
         .map(|s| format!("{}\n", s))
         .collect::<Vec<_>>();
+
+    let existing_route = find_route_attrs(&content)
+        .into_iter()
+        .next()
+        .ok_or(anyhow!("could not find any existing routes"))?;
 
     lines.insert(
         existing_route.start.line - 1,
         route_skeleton(&trace.request.uri),
     );
 
+    let existing_test = find_test_attrs(&content)
+        .into_iter()
+        .next()
+        .ok_or(anyhow!("could not find any existing tests"))?;
+
+    lines.insert(
+        existing_test.start.line - 1,
+        test_skeleton(&trace.request.uri),
+    );
     std::fs::write(&path, lines.concat()).context(format!("reading {:?}", path))?;
 
     Ok(())
@@ -44,12 +54,35 @@ fn route_skeleton(uri: &str) -> String {
 
 #[get("{}")]
 async fn {}() -> impl Responder {{
-    ""
+    dbg!("called");
+    "hi"
 }}
 
 "#,
         uri,
         uri.replace(|c: char| !c.is_ascii_lowercase(), "")
+    )
+}
+
+fn test_skeleton(uri: &str) -> String {
+    let handler_name = uri.replace(|c: char| !c.is_ascii_lowercase(), "");
+    // Ignore the whitespace. Rustfmt will strip it all out.
+    format!(
+        r#"
+
+    #[actix_rt::test]
+    async fn test_{}() {{
+        let mut app = atest::init_service(App::new().service({})).await;
+
+        let req = atest::TestRequest::with_uri("{}").to_request();
+        let resp = atest::call_service(&mut app, req).await;
+
+        dbg!(resp.status());
+        assert!(resp.status().is_success());
+    }}
+
+"#,
+        handler_name, handler_name, uri,
     )
 }
 
@@ -65,8 +98,30 @@ mod tests {
 
 #[get("/favicon.ico")]
 async fn faviconico() -> impl Responder {
-    ""
+    dbg!("called");
+    "hi"
 }
+
+"#
+        )
+    }
+
+    #[test]
+    fn test_test_skeleton() {
+        assert_eq!(
+            test_skeleton("/favicon.ico"),
+            r#"
+
+    #[actix_rt::test]
+    async fn test_faviconico() {
+        let mut app = atest::init_service(App::new().service(faviconico)).await;
+
+        let req = atest::TestRequest::with_uri("/favicon.ico").to_request();
+        let resp = atest::call_service(&mut app, req).await;
+
+        dbg!(resp.status());
+        assert!(resp.status().is_success());
+    }
 
 "#
         )
