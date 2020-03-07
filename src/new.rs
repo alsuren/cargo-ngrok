@@ -64,14 +64,14 @@ fn handler_skeleton(uri: &str) -> String {
     format!(
         r#"
 
-#[get("{}")]
-async fn {}() -> impl Responder {{
+#[get("{uri}")]
+async fn {handler_name}() -> impl Responder {{
     "TODO: implement this handler"
 }}
 
 "#,
-        uri,
-        uri.replace(|c: char| !c.is_ascii_lowercase(), "")
+        uri = uri,
+        handler_name = uri.replace(|c: char| !c.is_ascii_lowercase(), "")
     )
 }
 
@@ -82,10 +82,10 @@ fn test_skeleton(uri: &str) -> String {
         r#"
 
     #[actix_rt::test]
-    async fn test_{}() {{
-        let mut app = atest::init_service(App::new().service({})).await;
+    async fn test_{handler_name}() {{
+        let mut app = atest::init_service(App::new().service({handler_name})).await;
 
-        let req = atest::TestRequest::with_uri("{}").to_request();
+        let req = atest::TestRequest::with_uri("{uri}").to_request();
         let resp = atest::call_service(&mut app, req).await;
 
         dbg!(resp.status());
@@ -99,7 +99,8 @@ fn test_skeleton(uri: &str) -> String {
     }}
 
 "#,
-        handler_name, handler_name, uri,
+        handler_name = handler_name,
+        uri = uri,
     )
 }
 
@@ -175,10 +176,10 @@ fn test_500_skeleton(handler_name: &str, uri: &str, response_body: &str) -> Stri
         r#"
 
     #[actix_rt::test]
-    async fn test_{}_{}() {{
-        let mut app = atest::init_service(App::new().service({})).await;
+    async fn test_{handler_name}_{suffix}() {{
+        let mut app = atest::init_service(App::new().service({handler_name})).await;
 
-        let req = atest::TestRequest::with_uri("{}").to_request();
+        let req = atest::TestRequest::with_uri("{uri}").to_request();
         let resp = atest::call_service(&mut app, req).await;
 
         assert_eq!(resp.status(), 500);
@@ -186,12 +187,15 @@ fn test_500_skeleton(handler_name: &str, uri: &str, response_body: &str) -> Stri
         let bytes = atest::read_body(resp).await;
         assert_eq!(
             bytes,
-            Bytes::from_static(b"{}")
+            Bytes::from_static(b"{response_body}")
         );
     }}
 
 "#,
-        handler_name, suffix, handler_name, uri, response_body,
+        handler_name = handler_name,
+        suffix = suffix,
+        uri = uri,
+        response_body = response_body,
     )
 }
 
