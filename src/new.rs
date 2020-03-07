@@ -1,4 +1,4 @@
-use crate::parse_code::find_route_attrs;
+use crate::parse_code::find_handler_attrs;
 use crate::parse_code::find_service_registrations;
 use crate::parse_code::find_test_attrs;
 use anyhow::{anyhow, Context};
@@ -20,14 +20,14 @@ pub async fn new_handler() -> Result<(), anyhow::Error> {
         .map(|s| format!("{}\n", s))
         .collect::<Vec<_>>();
 
-    let existing_route = find_route_attrs(&content)
+    let existing_handler = find_handler_attrs(&content)
         .into_iter()
         .next()
-        .ok_or(anyhow!("could not find any existing routes"))?;
+        .ok_or(anyhow!("could not find any existing handlers"))?;
 
     lines.insert(
-        existing_route.start.line - 1,
-        route_skeleton(&trace.request.uri),
+        existing_handler.start.line - 1,
+        handler_skeleton(&trace.request.uri),
     );
 
     let existing_test = find_test_attrs(&content)
@@ -63,7 +63,7 @@ pub async fn new_test() -> Result<(), anyhow::Error> {
     todo!()
 }
 
-fn route_skeleton(uri: &str) -> String {
+fn handler_skeleton(uri: &str) -> String {
     // Ignore the whitespace. Rustfmt will strip it all out.
     format!(
         r#"
@@ -117,9 +117,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_route_skeleton() {
+    fn test_handler_skeleton() {
         assert_eq!(
-            route_skeleton("/favicon.ico"),
+            handler_skeleton("/favicon.ico"),
             r#"
 
 #[get("/favicon.ico")]

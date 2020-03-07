@@ -8,7 +8,7 @@ use syn::visit::visit_expr_method_call;
 use syn::{spanned::Spanned, visit::Visit, Attribute, ExprMethodCall};
 
 /// Find locations of `#[get("/")]`s from source code.
-pub(crate) fn find_route_attrs(code: &str) -> Vec<Location> {
+pub(crate) fn find_handler_attrs(code: &str) -> Vec<Location> {
     let mut visitor = AttrVisitor::new("#[get(".into());
     if let Ok(syntax_tree) = syn::parse_file(&code) {
         visitor.visit_file(&syntax_tree);
@@ -111,11 +111,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_find_route_attr() {
+    fn test_find_handler_attr() {
         assert_eq!(
             format!(
                 "{:#?}",
-                find_route_attrs(
+                find_handler_attrs(
                     r#"
 use actix_web::{get, middleware::Logger, web, App, HttpServer, Responder};
 
