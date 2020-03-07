@@ -15,12 +15,12 @@ FLAGS:
     -V, --version    Prints version information
 
 SUBCOMMANDS:
-    404s           list requests for turning into new handlers (TODO)
-    500s           list requests for turning into regression tests (TODO)
+    404s           list requests for turning into new handlers
+    500s           list requests for turning into regression tests
     develop        run your project with tracing (TODO)
     help           Prints this message or the help of the given subcommand(s)
-    new-handler    make a new route handler from the latest 404 error (TODO)
-    new-test       make a regression test from the latest 500 error (TODO)
+    new-handler    make a new route handler from the latest 404 error
+    new-test       make a regression test from the latest 500 error
     replay-404     replay the latest 404 error (TODO)
     replay-500     replay the latest 500 error (TODO)
 
@@ -68,6 +68,6 @@ In my current development workflow, I have the following tabs open:
         1. clean the working directory
         1. make a new skeleton `/whatever`
         1. show the diff and run the tests.
-        1. Note that this only works because I have symlinked ~/src/cargo-ngrok/target/debug/cargo-ngrok into my $PATH
+        1. Note that this only works because I have symlinked ~/src/cargo-ngrok/target/debug/cargo-ngrok into my $PATH.
 
 I find that this allows me to prototype pretty quickly. I have also been trying out `cargo-fixeq`, which is why some of my tests jump through hoops to let the second `assert_eq!()` argument be a string literal.

@@ -52,7 +52,7 @@ enum Ngrok {
     /// code to error out. Use `new-test` to make regression tests for these.
     _500s,
 
-    /// make a new route handler from the latest 404 error (TODO)
+    /// make a new route handler from the latest 404 error
     ///
     /// Makes a skeleton route handler, plus an integration test that includes
     /// the request's payload. The integration test should initially pass (if
@@ -61,7 +61,7 @@ enum Ngrok {
     /// you want.
     NewHandler,
 
-    /// make a regression test from the latest 500 error (TODO)
+    /// make a regression test from the latest 500 error
     ///
     /// Makes an integration test that includes the request's payload.
     /// The integration test should initially fail. You can then use your
