@@ -27,9 +27,15 @@ pub async fn new_handler() -> Result<(), anyhow::Error> {
     let existing_test = find_test_attrs(&content)?;
     let existing_service_registration = find_service_registrations(&content)?;
 
-    let skeleton_handler = format_handler(&trace.request.uri);
-    let skeleton_test = format_integration_test(&trace.request.uri);
-    let service_registration = format_service_registration(&trace.request.uri);
+    let safe_name = trace
+        .request
+        .uri
+        .replace(|c: char| !c.is_ascii_lowercase(), "_");
+    let handler_name = safe_name.trim_start_matches('_');
+
+    let skeleton_handler = format_handler(&handler_name, &trace.request.route_path());
+    let skeleton_test = format_integration_test(&handler_name, &trace.request.uri);
+    let service_registration = format!(".service({})", handler_name);
 
     insert(&mut lines, existing_handler.start, &skeleton_handler);
     insert(&mut lines, existing_test.start, &skeleton_test);
@@ -44,24 +50,23 @@ pub async fn new_handler() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn format_handler(uri: &str) -> String {
+fn format_handler(handler_name: &str, route_path: &str) -> String {
     // Ignore the whitespace. Rustfmt will strip it all out.
     format!(
         r#"
 
-#[get("{uri}")]
+#[get("{route_path}")]
 async fn {handler_name}() -> impl Responder {{
     "TODO: implement this handler"
 }}
 
 "#,
-        uri = uri,
-        handler_name = uri.replace(|c: char| !c.is_ascii_lowercase(), "")
+        route_path = route_path,
+        handler_name = handler_name,
     )
 }
 
-fn format_integration_test(uri: &str) -> String {
-    let handler_name = uri.replace(|c: char| !c.is_ascii_lowercase(), "");
+fn format_integration_test(handler_name: &str, uri: &str) -> String {
     // Ignore the whitespace. Rustfmt will strip it all out.
     format!(
         r#"
@@ -89,11 +94,6 @@ fn format_integration_test(uri: &str) -> String {
     )
 }
 
-fn format_service_registration(uri: &str) -> String {
-    let handler_name = uri.replace(|c: char| !c.is_ascii_lowercase(), "");
-    format!(".service({})", handler_name)
-}
-
 pub async fn new_test() -> Result<(), anyhow::Error> {
     let trace = crate::list::latest_trace_for_code(500).await?;
 
@@ -116,7 +116,8 @@ pub async fn new_test() -> Result<(), anyhow::Error> {
 }
 
 fn format_regression_test(handler_name: &str, uri: &str, response_body: &str) -> String {
-    let suffix = uri.replace(|c: char| !c.is_ascii_lowercase(), "");
+    let safe_name = uri.replace(|c: char| !c.is_ascii_lowercase(), "_");
+    let suffix = safe_name.trim_start_matches('_');
     // Ignore the whitespace. Rustfmt will strip it all out.
     format!(
         r#"
@@ -152,7 +153,7 @@ mod tests {
     #[test]
     fn test_format_handler() {
         assert_eq!(
-            format_handler("/favicon.ico"),
+            format_handler("faviconico", "/favicon.ico"),
             r#"
 
 #[get("/favicon.ico")]
@@ -167,7 +168,7 @@ async fn faviconico() -> impl Responder {
     #[test]
     fn test_format_integration_test() {
         assert_eq!(
-            format_integration_test("/favicon.ico"),
+            format_integration_test("faviconico", "/favicon.ico"),
             r#"
 
     #[actix_rt::test]
@@ -198,7 +199,7 @@ async fn faviconico() -> impl Responder {
             r#"
 
     #[actix_rt::test]
-    async fn test_index_paramboom() {
+    async fn test_index_param_boom() {
         let mut app = atest::init_service(App::new().service(index)).await;
 
         let req = atest::TestRequest::with_uri("/?param=boom").to_request();
