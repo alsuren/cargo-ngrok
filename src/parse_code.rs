@@ -27,7 +27,7 @@ fn first<T>(mut things: Vec<T>) -> Result<T> {
 }
 
 /// Find locations of `#[get("/")]`s from source code.
-pub(crate) fn find_handler_attrs(code: &str) -> Result<Location> {
+pub(crate) fn find_handler_attr(code: &str) -> Result<Location> {
     let mut visitor = AttrVisitor::new(r#"#[get("/")"#.into());
     if let Ok(syntax_tree) = syn::parse_file(&code) {
         visitor.visit_file(&syntax_tree);
@@ -37,7 +37,7 @@ pub(crate) fn find_handler_attrs(code: &str) -> Result<Location> {
 }
 
 /// Find locations of `#[actix_rt::test]`s from source code.
-pub(crate) fn find_test_attrs(code: &str) -> Result<Location> {
+pub(crate) fn find_test_attr(code: &str) -> Result<Location> {
     let mut visitor = AttrVisitor::new("#[actix_rt::test]".into());
     if let Ok(syntax_tree) = syn::parse_file(&code) {
         visitor.visit_file(&syntax_tree);
@@ -82,7 +82,7 @@ impl<'ast> Visit<'ast> for AttrVisitor {
 }
 
 /// Find names of #[get("/route")] handler functions from source code.
-pub(crate) fn find_handler_function_names(code: &str, route: &str) -> Result<String> {
+pub(crate) fn find_handler_function_name(code: &str, route: &str) -> Result<String> {
     let mut visitor = FnVisitor::new(format!(r#"#[get("{}")]"#, route));
     if let Ok(syntax_tree) = syn::parse_file(&code) {
         visitor.visit_file(&syntax_tree);
@@ -121,11 +121,14 @@ impl<'ast> Visit<'ast> for FnVisitor {
 }
 
 /// Find locations of `.service(index)` from source code.
-pub(crate) fn find_service_registrations(code: &str) -> Result<Location> {
+pub(crate) fn find_service_registration(code: &str) -> Result<Location> {
     let mut visitor = MethodCallVisitor::new("service".into());
     if let Ok(syntax_tree) = syn::parse_file(&code) {
         visitor.visit_file(&syntax_tree);
     }
+    // FIXME: there has to be a better way to do this.
+    // It currently relies on the fact that most people define theirtests at
+    // the bottom of the file, so the one in main() is seen first.
     first(visitor.out).context("should be at least one call to .service(...)")
 }
 
@@ -175,7 +178,7 @@ mod tests {
         assert_eq!(
             format!(
                 "{:#?}",
-                find_handler_attrs(
+                find_handler_attr(
                     r#"
 use actix_web::{get, middleware::Logger, web, App, HttpServer, Responder};
 
@@ -196,7 +199,7 @@ async fn index(query: web::Query<HashMap<String, String>>) -> impl Responder {
         assert_eq!(
             format!(
                 "{:#?}",
-                find_test_attrs(
+                find_test_attr(
                     r#"
 
     #[actix_rt::test]
@@ -218,11 +221,11 @@ async fn index(query: web::Query<HashMap<String, String>>) -> impl Responder {
     }
 
     #[test]
-    fn test_find_service_registrations() {
+    fn test_find_service_registration() {
         assert_eq!(
             format!(
                 "{:#?}",
-                find_service_registrations(
+                find_service_registration(
                     r#"
 
 

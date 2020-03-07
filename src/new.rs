@@ -1,6 +1,6 @@
-use crate::parse_code::find_handler_attrs;
-use crate::parse_code::find_service_registrations;
-use crate::parse_code::{find_handler_function_names, find_test_attrs};
+use crate::parse_code::{
+    find_handler_attr, find_handler_function_name, find_service_registration, find_test_attr,
+};
 use anyhow::Context;
 use proc_macro2::LineColumn;
 
@@ -23,9 +23,9 @@ pub async fn new_handler() -> Result<(), anyhow::Error> {
     let file_path = "src/main.rs";
     let (content, mut lines) = read_file(file_path)?;
 
-    let existing_handler = find_handler_attrs(&content)?;
-    let existing_test = find_test_attrs(&content)?;
-    let existing_service_registration = find_service_registrations(&content)?;
+    let existing_handler = find_handler_attr(&content)?;
+    let existing_test = find_test_attr(&content)?;
+    let existing_service_registration = find_service_registration(&content)?;
 
     let safe_name = trace
         .request
@@ -100,8 +100,8 @@ pub async fn new_test() -> Result<(), anyhow::Error> {
     let file_path = "src/main.rs";
     let (content, mut lines) = read_file(file_path)?;
 
-    let handler_name = find_handler_function_names(&content, &trace.request.route_path())?;
-    let existing_test = find_test_attrs(&content)?;
+    let handler_name = find_handler_function_name(&content, &trace.request.route_path())?;
+    let existing_test = find_test_attr(&content)?;
 
     let skeleton_test = format_regression_test(
         &handler_name,
