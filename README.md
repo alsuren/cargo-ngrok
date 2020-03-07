@@ -68,5 +68,6 @@ In my current development workflow, I have the following tabs open:
         1. clean the working directory
         1. make a new skeleton `/whatever`
         1. show the diff and run the tests.
+        1. Note that this only works because I have symlinked ~/src/cargo-ngrok/target/debug/cargo-ngrok into my $PATH
 
 I find that this allows me to prototype pretty quickly. I have also been trying out `cargo-fixeq`, which is why some of my tests jump through hoops to let the second `assert_eq!()` argument be a string literal.
