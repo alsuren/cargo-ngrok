@@ -1,28 +1,43 @@
+use crate::list::RequestTrace;
 use crate::parse_code::{
     find_handler_attr, find_handler_function_name, find_service_registration, find_test_attr,
 };
-use anyhow::Context;
+use anyhow::{Context, Result};
 use proc_macro2::LineColumn;
 
-fn read_file(path: &str) -> anyhow::Result<(String, Vec<String>)> {
-    let content = std::fs::read_to_string(path).context(format!("reading {:?}", path))?;
-    let lines = content.lines().map(|s| format!("{}\n", s)).collect();
+fn read_file(file_path: &str) -> Result<String> {
+    std::fs::read_to_string(file_path).with_context(|| format!("reading {:?}", file_path))
+}
 
-    Ok((content, lines))
+fn write_file(file_path: &str, content: &str, edits: Vec<(LineColumn, String)>) -> Result<()> {
+    let mut lines = content.lines().map(|s| format!("{}\n", s)).collect();
+
+    for (location, code) in edits {
+        insert(&mut lines, location, &code);
+    }
+    std::fs::write(&file_path, lines.concat()).context(format!("writing {:?}", file_path))?;
+
+    Ok(())
 }
 
 fn insert(lines: &mut Vec<String>, location: LineColumn, code: &str) {
-    dbg!(lines.get_mut(location.line - 1))
+    lines
+        .get_mut(location.line - 1)
         .unwrap()
         .insert_str(location.column, &code);
 }
 
-pub async fn new_handler() -> Result<(), anyhow::Error> {
+pub async fn new_handler() -> Result<()> {
     let trace = crate::list::latest_trace_for_code(404).await?;
-
     let file_path = "src/main.rs";
-    let (content, mut lines) = read_file(file_path)?;
+    let content = read_file(file_path)?;
 
+    let edits = edits_for_new_handler(trace, &content)?;
+
+    write_file(file_path, &content, edits)
+}
+
+fn edits_for_new_handler(trace: RequestTrace, content: &str) -> Result<Vec<(LineColumn, String)>> {
     let existing_handler = find_handler_attr(&content)?;
     let existing_test = find_test_attr(&content)?;
     let existing_service_registration = find_service_registration(&content)?;
@@ -33,24 +48,18 @@ pub async fn new_handler() -> Result<(), anyhow::Error> {
         .replace(|c: char| !c.is_ascii_lowercase(), "_");
     let handler_name = safe_name.trim_start_matches('_');
 
-    let skeleton_handler = format_handler(&handler_name, &trace.request.route_path());
-    let skeleton_test = format_integration_test(&handler_name, &trace.request.uri);
+    let handler_fn = format_handler_fn(&handler_name, &trace.request.route_path());
+    let integration_test = format_integration_test(&handler_name, &trace.request.uri);
     let service_registration = format!(".service({})", handler_name);
 
-    insert(&mut lines, existing_handler.start, &skeleton_handler);
-    insert(&mut lines, existing_test.start, &skeleton_test);
-    insert(
-        &mut lines,
-        existing_service_registration.end,
-        &service_registration,
-    );
-
-    std::fs::write(&file_path, lines.concat()).context(format!("writing {:?}", file_path))?;
-
-    Ok(())
+    Ok(vec![
+        (existing_handler.start, handler_fn),
+        (existing_test.start, integration_test),
+        (existing_service_registration.end, service_registration),
+    ])
 }
 
-fn format_handler(handler_name: &str, route_path: &str) -> String {
+fn format_handler_fn(handler_name: &str, route_path: &str) -> String {
     // Ignore the whitespace. Rustfmt will strip it all out.
     format!(
         r#"
@@ -94,12 +103,18 @@ fn format_integration_test(handler_name: &str, uri: &str) -> String {
     )
 }
 
-pub async fn new_test() -> Result<(), anyhow::Error> {
+pub async fn new_test() -> Result<()> {
     let trace = crate::list::latest_trace_for_code(500).await?;
 
     let file_path = "src/main.rs";
-    let (content, mut lines) = read_file(file_path)?;
+    let content = read_file(file_path)?;
 
+    let edits = edits_for_new_test(trace, &content)?;
+
+    write_file(file_path, &content, edits)
+}
+
+fn edits_for_new_test(trace: RequestTrace, content: &str) -> Result<Vec<(LineColumn, String)>> {
     let handler_name = find_handler_function_name(&content, &trace.request.route_path())?;
     let existing_test = find_test_attr(&content)?;
 
@@ -108,11 +123,7 @@ pub async fn new_test() -> Result<(), anyhow::Error> {
         &trace.request.uri,
         &trace.response.get_body()?,
     );
-
-    lines.insert(existing_test.start.line - 1, skeleton_test);
-    std::fs::write(&file_path, lines.concat()).context(format!("writing {:?}", file_path))?;
-
-    Ok(())
+    Ok(vec![(existing_test.start, skeleton_test)])
 }
 
 fn format_regression_test(handler_name: &str, uri: &str, response_body: &str) -> String {
@@ -151,9 +162,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_format_handler() {
+    fn test_format_handler_fn() {
         assert_eq!(
-            format_handler("faviconico", "/favicon.ico"),
+            format_handler_fn("faviconico", "/favicon.ico"),
             r#"
 
 #[get("/favicon.ico")]
