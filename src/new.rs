@@ -59,6 +59,29 @@ fn edits_for_new_handler(trace: RequestTrace, content: &str) -> Result<Vec<(Line
     ])
 }
 
+pub async fn new_test() -> Result<()> {
+    let trace = crate::list::latest_trace_for_code(500).await?;
+
+    let file_path = "src/main.rs";
+    let content = read_file(file_path)?;
+
+    let edits = edits_for_new_test(trace, &content)?;
+
+    write_file(file_path, &content, edits)
+}
+
+fn edits_for_new_test(trace: RequestTrace, content: &str) -> Result<Vec<(LineColumn, String)>> {
+    let handler_name = find_handler_function_name(&content, &trace.request.route_path())?;
+    let existing_test = find_test_attr(&content)?;
+
+    let skeleton_test = format_regression_test(
+        &handler_name,
+        &trace.request.uri,
+        &trace.response.get_body()?,
+    );
+    Ok(vec![(existing_test.start, skeleton_test)])
+}
+
 fn format_handler_fn(handler_name: &str, route_path: &str) -> String {
     // Ignore the whitespace. Rustfmt will strip it all out.
     format!(
@@ -101,29 +124,6 @@ fn format_integration_test(handler_name: &str, uri: &str) -> String {
         handler_name = handler_name,
         uri = uri,
     )
-}
-
-pub async fn new_test() -> Result<()> {
-    let trace = crate::list::latest_trace_for_code(500).await?;
-
-    let file_path = "src/main.rs";
-    let content = read_file(file_path)?;
-
-    let edits = edits_for_new_test(trace, &content)?;
-
-    write_file(file_path, &content, edits)
-}
-
-fn edits_for_new_test(trace: RequestTrace, content: &str) -> Result<Vec<(LineColumn, String)>> {
-    let handler_name = find_handler_function_name(&content, &trace.request.route_path())?;
-    let existing_test = find_test_attr(&content)?;
-
-    let skeleton_test = format_regression_test(
-        &handler_name,
-        &trace.request.uri,
-        &trace.response.get_body()?,
-    );
-    Ok(vec![(existing_test.start, skeleton_test)])
 }
 
 fn format_regression_test(handler_name: &str, uri: &str, response_body: &str) -> String {
